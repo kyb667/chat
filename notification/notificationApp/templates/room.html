@@ -7,10 +7,24 @@
 <body>
     <textarea id="chat-log" cols="100" rows="20"></textarea><br>
     <input id="chat-message-input" type="text" size="100"><br>
+    <ul>
+        <li>
+          <input type="radio" name="radioTxt" value="all" checked>all
+        </li>
+        <li>
+          <input type="radio" name="radioTxt" value="abc1">abc1
+        </li>
+        <li>
+          <input type="radio" name="radioTxt" value="abc2">abc2
+        </li>
+      </ul>
     <input id="chat-message-submit" type="button" value="Send">
     {{ room_name|json_script:"room-name" }}
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script>
-        const roomName = JSON.parse(document.getElementById('room-name').textContent);
+        const room = (JSON.parse(document.getElementById('room-name').textContent)).split('_');
+        const roomName = room[0]
+        const writer = room[1]
 
         const chatSocket = new WebSocket(
             'ws://'
@@ -21,8 +35,41 @@
 
         chatSocket.onmessage = function(e) {
             const data = JSON.parse(e.data);
-            document.querySelector('#chat-log').value += (data.message + '\n');
+            if (data.message){
+                if (data.to == 'all'){
+                    document.querySelector('#chat-log').value += (data.writer + ' : ' +data.message + '\n');
+                }else if((data.to == writer) || (data.writer == writer)){
+                    document.querySelector('#chat-log').value += (data.writer + ' : ' +data.message + '\n');
+                }
+            }
         };
+        window.onload = function () {
+            if (window.Notification) {
+                Notification.requestPermission();
+            }
+        }
+
+        function calculate() {
+            setTimeout(function () {
+                notify();
+            }, 1000);
+        }
+
+        function notify() {
+            if (Notification.permission !== 'granted') {
+                alert('notification is disabled');
+            }
+            else {
+                var notification = new Notification('주문이 도착했습니다', {
+                    icon: 'http://cdn.sstatic.net/stackexchange/img/logos/so/so-icon.png',
+                    body: '어서 주문을 확인해보세요!',
+                });
+
+                notification.onclick = function () {
+                    window.open('http://127.0.0.1:8001/order-check');
+                };
+            }
+        }
 
         chatSocket.onclose = function(e) {
             console.error('Chat socket closed unexpectedly');
@@ -38,8 +85,11 @@
         document.querySelector('#chat-message-submit').onclick = function(e) {
             const messageInputDom = document.querySelector('#chat-message-input');
             const message = messageInputDom.value;
+            var radioVal = $('input[name="radioTxt"]:checked').val();
             chatSocket.send(JSON.stringify({
-                'message': message
+                'message': message,
+                'writer': writer,
+                'to':radioVal
             }));
             messageInputDom.value = '';
         };
